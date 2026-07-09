@@ -1,4 +1,4 @@
-import { defineEventHandler, readBody, createError } from 'h3'
+import { defineEventHandler, readBody, createError, setResponseHeader } from 'h3'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 
@@ -9,8 +9,18 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'OpenAI API Key mancante' })
   }
 
+  // Setup SSE Headers
+  setResponseHeader(event, 'Content-Type', 'text/event-stream')
+  setResponseHeader(event, 'Cache-Control', 'no-cache')
+  setResponseHeader(event, 'Connection', 'keep-alive')
+  // We must return a promise that resolves when the stream is done, but we can write directly to event.node.res
+  const res = event.node.res
+  const sendEvent = (type: string, data: any) => {
+    res.write(`data: ${JSON.stringify({ type, ...data })}\n\n`)
+  }
+
   const baseURL = 'https://api.openai.com/v1'
-  const model = 'gpt-4o-mini' // or gpt-4o for better tool usage
+  const model = 'gpt-4o-mini'
 
   const messages = [
     { role: 'system', content: 'Sei un assistente IA potenziato con tool MCP (Model Context Protocol). Usa i tool forniti se necessario per rispondere alle domande dell\'utente.' },
@@ -21,6 +31,8 @@ export default defineEventHandler(async (event) => {
   const mcpClients: { client: Client, transport: StdioClientTransport, serverName: string }[] = []
 
   try {
+    sendEvent('progress', { msg: 'Inizializzazione server MCP...' })
+
     // 1. Initialize MCP Clients
     for (const cmd of (mcpServers || [])) {
       if (!cmd.trim()) continue
@@ -33,9 +45,52 @@ export default defineEventHandler(async (event) => {
         env: process.env
       })
       
-      const client = new Client({ name: 'nuxt-mcp-agent', version: '1.0.0' }, { capabilities: {} })
+      const client = new Client(
+        { name: 'nuxt-mcp-agent', version: '1.0.0' },
+        {
+          capabilities: {
+            roots: { listChanged: false },
+            sampling: {}
+          }
+        }
+      )
+
+      // Roots capability
+      client.setRequestHandler({ method: 'roots/list' } as any, async () => {
+        return {
+          roots: [
+            {
+              uri: `file://${process.cwd()}`,
+              name: 'Workspace corrente'
+            }
+          ]
+        }
+      })
+
+      // Sampling capability
+      client.setRequestHandler({ method: 'sampling/createMessage' } as any, async (req: any) => {
+        sendEvent('progress', { msg: `Il server MCP richiede un sampling (LLM Inception)...` })
+        const samplingRes = await fetch(`${baseURL}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({
+            model: req.params.modelPreferences?.hints?.[0]?.name || model,
+            messages: req.params.messages,
+            max_tokens: req.params.maxTokens || 1000
+          })
+        })
+        const samplingData = await samplingRes.json()
+        return {
+          role: samplingData.choices[0].message.role,
+          content: { type: 'text', text: samplingData.choices[0].message.content },
+          model: samplingData.model
+        }
+      })
+
       await client.connect(transport)
-      
       const toolsRes = await client.listTools()
       
       for (const t of toolsRes.tools) {
@@ -58,6 +113,8 @@ export default defineEventHandler(async (event) => {
     let currentIteration = 0
     let finalContent = ''
 
+    sendEvent('progress', { msg: 'Elaborazione della risposta (LLM)...' })
+
     while (currentIteration < maxIterations) {
       currentIteration++
       
@@ -72,7 +129,7 @@ export default defineEventHandler(async (event) => {
         payload.tools = availableTools.map(t => ({ type: 'function', function: t.function }))
       }
 
-      const res = await fetch(`${baseURL}/chat/completions`, {
+      const fetchRes = await fetch(`${baseURL}/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -81,12 +138,12 @@ export default defineEventHandler(async (event) => {
         body: JSON.stringify(payload)
       })
 
-      if (!res.ok) {
-        const errText = await res.text()
+      if (!fetchRes.ok) {
+        const errText = await fetchRes.text()
         throw new Error(`LLM API Error: ${errText}`)
       }
 
-      const data = await res.json()
+      const data = await fetchRes.json()
       const message = data.choices[0].message
       
       messages.push(message)
@@ -96,6 +153,8 @@ export default defineEventHandler(async (event) => {
         for (const call of message.tool_calls) {
           const fnName = call.function.name
           const args = JSON.parse(call.function.arguments || '{}')
+          
+          sendEvent('progress', { msg: `Esecuzione tool: ${fnName}...` })
           
           const toolConfig = availableTools.find(t => t.function.name === fnName)
           if (toolConfig) {
@@ -124,6 +183,7 @@ export default defineEventHandler(async (event) => {
             })
           }
         }
+        sendEvent('progress', { msg: 'Analisi dei risultati del tool...' })
         continue // Loop back to LLM
       } else {
         finalContent = message.content
@@ -131,9 +191,9 @@ export default defineEventHandler(async (event) => {
       }
     }
 
-    return { result: finalContent }
+    sendEvent('complete', { result: finalContent })
   } catch (err: any) {
-    throw createError({ statusCode: 500, statusMessage: 'Errore Server', data: err.message })
+    sendEvent('error', { error: err.message || 'Errore Server' })
   } finally {
     // Cleanup MCP processes
     for (const c of mcpClients) {
@@ -141,5 +201,6 @@ export default defineEventHandler(async (event) => {
         await c.client.close()
       } catch (e) {}
     }
+    res.end()
   }
 })

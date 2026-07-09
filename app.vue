@@ -74,7 +74,9 @@
               {{ msg.content }}
             </div>
           </div>
-          <div v-if="loading" class="text-gray-500 text-sm italic">Agent is thinking (and possibly using tools)...</div>
+          <div v-if="loading" class="text-gray-500 text-sm italic">
+            {{ typeof loading === 'string' ? loading : 'Agent is thinking...' }}
+          </div>
         </div>
         
         <form @submit.prevent="sendMessage" class="p-4 border-t border-gray-800 flex gap-2">
@@ -97,7 +99,7 @@ const apiKey = ref('')
 const activeMcpServers = ref<string[]>(['npx -y @modelcontextprotocol/server-everything'])
 const input = ref('')
 const messages = ref<{role: string, content: string}[]>([])
-const loading = ref(false)
+const loading = ref<string | boolean>(false)
 
 // MCP Catalog Logic
 const mcpCatalog = [
@@ -157,16 +159,47 @@ async function sendMessage() {
   loading.value = true
   
   try {
-    const res = await $fetch('/api/chat', {
+    const res = await fetch('/api/chat', {
       method: 'POST',
-      body: {
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         prompt: userMsg,
         apiKey: apiKey.value,
         mcpServers: activeMcpServers.value.filter(s => s.trim())
-      }
+      })
     })
     
-    messages.value.push({ role: 'assistant', content: res.result })
+    const reader = res.body?.getReader()
+    const decoder = new TextDecoder()
+    
+    if (reader) {
+      let buffer = ''
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        
+        const lines = buffer.split('\n\n')
+        buffer = lines.pop() || ''
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6))
+              if (data.type === 'progress') {
+                loading.value = data.msg
+              } else if (data.type === 'complete') {
+                messages.value.push({ role: 'assistant', content: data.result })
+              } else if (data.type === 'error') {
+                messages.value.push({ role: 'assistant', content: `Error: ${data.error}` })
+              }
+            } catch (e) {
+              // Ignore malformed JSON in stream chunks
+            }
+          }
+        }
+      }
+    }
   } catch (err: any) {
     messages.value.push({ role: 'assistant', content: `Error: ${err.message}` })
   } finally {
