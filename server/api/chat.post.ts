@@ -29,6 +29,14 @@ export default defineEventHandler(async (event) => {
     baseURL = 'https://openrouter.ai/api/v1'
   } else if (provider === 'gemini') {
     baseURL = 'https://generativelanguage.googleapis.com/v1beta/openai'
+  } else if (provider === 'deepseek') {
+    baseURL = 'https://api.deepseek.com'
+  } else if (provider === 'mistral') {
+    baseURL = 'https://api.mistral.ai/v1'
+  } else if (provider === 'groq') {
+    baseURL = 'https://api.groq.com/openai/v1'
+  } else if (provider === 'cohere') {
+    baseURL = 'https://api.cohere.com/v1'
   } else if (provider === 'openrouter' || (provider && provider !== 'openai' && provider !== 'custom')) {
     baseURL = 'https://openrouter.ai/api/v1'
   }
