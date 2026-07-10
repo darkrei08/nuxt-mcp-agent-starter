@@ -26,7 +26,7 @@ export default defineEventHandler(async (event) => {
     // Anthropic usually uses a different endpoint structure, 
     // but assuming OpenAI-compatible endpoints or OpenRouter if they use standard openai format
     // For a real implementation, we should use their specific SDK or format
-    baseURL = 'https://api.anthropic.com/v1'
+    baseURL = 'https://openrouter.ai/api/v1'
   } else if (provider === 'gemini') {
     baseURL = 'https://generativelanguage.googleapis.com/v1beta/openai'
   } else if (provider === 'openrouter' || (provider && provider !== 'openai' && provider !== 'custom')) {
