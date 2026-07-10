@@ -29,11 +29,11 @@ services:
       - NUXT_PUBLIC_MCP_URL=http://localhost:3001
 ```
 
-### 🔮 Advanced Features (Roadmap)
-Based on MCP specification research, the following advanced features are tracked for future integration:
-- **Progress Notifications (SSE)**: Instead of a static "Thinking..." state, the agent loop will emit Server-Sent Events to stream progress updates (e.g., "Downloading file...", "Querying Database...") directly to the frontend.
-- **Roots / Safe Filesystem Access**: Providing explicit directory boundaries to allow the MCP Agent to read and modify specific project files securely without escaping the container.
-- **Server Sampling**: Allowing downstream MCP servers to explicitly request generation tasks from the parent LLM.
+### ✨ Advanced Features (Implemented)
+Based on MCP specification research, this boilerplate fully supports:
+- **Progress Notifications (SSE)**: Instead of a static "Thinking..." state, the agent loop uses Server-Sent Events to stream real-time progress updates (e.g., "Executing tool...", "Querying Database...") directly to the Nuxt UI.
+- **Roots / Safe Filesystem Access**: Automatically exposes the local workspace directory to MCP servers securely, allowing them to read and modify specific project files without escaping the container.
+- **Server Sampling (LLM Inception)**: Allows downstream MCP servers (like terminal agents) to explicitly request generation tasks from the parent OpenAI model using the provided API key.
 
 ---
 
@@ -64,8 +64,8 @@ services:
       - NUXT_PUBLIC_MCP_URL=http://localhost:3001
 ```
 
-### 🔮 Funzionalità Avanzate (Roadmap)
-Dall'analisi delle specifiche ufficiali del protocollo MCP, abbiamo mappato le seguenti feature avanzate per i prossimi sviluppi:
-- **Notifiche di Progresso (SSE)**: Invece di un generico stato di "Caricamento...", il ciclo Agente invierà Server-Sent Events per mostrare i vari step ("Lettura database...", "Scrittura file...") in tempo reale sulla UI.
-- **Roots (Accesso Sicuro ai File)**: Definizione di confini di directory espliciti, per permettere al server MCP di accedere e modificare i file del progetto in totale sicurezza, evitando fughe dal container (Directory Traversal).
-- **Sampling (Campionamento)**: Permettere ai server MCP esterni di richiedere a loro volta piccoli task di generazione all'LLM principale durante l'esecuzione del tool.
+### ✨ Funzionalità Avanzate (Implementate)
+Dall'analisi delle specifiche ufficiali del protocollo MCP, abbiamo implementato:
+- **Notifiche di Progresso (SSE)**: Invece di un generico stato di "Caricamento...", il ciclo Agente sfrutta i Server-Sent Events (SSE) per mostrare i vari step ("Esecuzione tool...", "Scrittura file...") in tempo reale sulla UI.
+- **Roots (Accesso Sicuro ai File)**: Definizione di confini di directory espliciti sul filesystem, per permettere al server MCP di accedere e modificare i file del progetto in totale sicurezza, evitando fughe dal container.
+- **Sampling (Campionamento LLM)**: Permette ai server MCP esterni (come terminali autonomi) di richiedere a loro volta task di generazione all'LLM principale (OpenAI) incanalandoli tramite la tua stessa API Key.
