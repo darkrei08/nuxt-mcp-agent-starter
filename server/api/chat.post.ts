@@ -3,10 +3,10 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 
 export default defineEventHandler(async (event) => {
-  const { prompt, apiKey, mcpServers } = await readBody(event)
+  const { prompt, apiKey, mcpServers, provider, model, customBaseUrl } = await readBody(event)
 
-  if (!apiKey) {
-    throw createError({ statusCode: 400, statusMessage: 'OpenAI API Key mancante' })
+  if (!apiKey && provider !== 'custom') {
+    throw createError({ statusCode: 400, statusMessage: 'API Key mancante per il provider selezionato' })
   }
 
   // Setup SSE Headers
@@ -19,8 +19,21 @@ export default defineEventHandler(async (event) => {
     res.write(`data: ${JSON.stringify({ type, ...data })}\n\n`)
   }
 
-  const baseURL = 'https://api.openai.com/v1'
-  const model = 'gpt-4o-mini'
+  let baseURL = 'https://api.openai.com/v1'
+  if (provider === 'custom' && customBaseUrl) {
+    baseURL = customBaseUrl.replace(/\/+$/, '')
+  } else if (provider === 'anthropic') {
+    // Anthropic usually uses a different endpoint structure, 
+    // but assuming OpenAI-compatible endpoints or OpenRouter if they use standard openai format
+    // For a real implementation, we should use their specific SDK or format
+    baseURL = 'https://api.anthropic.com/v1'
+  } else if (provider === 'gemini') {
+    baseURL = 'https://generativelanguage.googleapis.com/v1beta/openai'
+  } else if (provider === 'openrouter' || (provider && provider !== 'openai' && provider !== 'custom')) {
+    baseURL = 'https://openrouter.ai/api/v1'
+  }
+  
+  const selectedModel = model || 'gpt-4o-mini'
 
   const messages = [
     { role: 'system', content: 'Sei un assistente IA potenziato con tool MCP (Model Context Protocol). Usa i tool forniti se necessario per rispondere alle domande dell\'utente.' },
@@ -77,7 +90,7 @@ export default defineEventHandler(async (event) => {
             'Authorization': `Bearer ${apiKey}`
           },
           body: JSON.stringify({
-            model: req.params.modelPreferences?.hints?.[0]?.name || model,
+            model: req.params.modelPreferences?.hints?.[0]?.name || selectedModel,
             messages: req.params.messages,
             max_tokens: req.params.maxTokens || 1000
           })
@@ -119,7 +132,7 @@ export default defineEventHandler(async (event) => {
       currentIteration++
       
       const payload: any = {
-        model: model,
+        model: selectedModel,
         messages: messages,
         temperature: 0.7,
         max_tokens: 2000

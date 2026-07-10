@@ -10,10 +10,43 @@
 
       <!-- Settings & MCP Catalog -->
       <section class="bg-gray-900 rounded-xl p-6 border border-gray-800 space-y-6">
-        <div>
-          <label class="block text-sm font-medium text-gray-300 mb-1">OpenAI API Key</label>
-          <input v-model="apiKey" type="password" placeholder="sk-..." 
-                 class="w-full bg-gray-950 border border-gray-700 rounded-lg p-3 text-sm focus:border-blue-500 outline-none" />
+        <div class="space-y-4">
+          <div class="flex justify-between items-center mb-1">
+            <label class="block text-sm font-medium text-gray-300">LLM Provider & Modello</label>
+            <div class="flex items-center gap-2">
+              <span v-if="catalogLoading" class="text-xs text-gray-400">Caricamento...</span>
+              <button @click="fetchModelCatalog(true)" :disabled="catalogLoading" class="text-xs text-blue-400 hover:text-blue-300">🔄 Aggiorna</button>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <select v-model="selectedProvider" class="w-full bg-gray-950 border border-gray-700 rounded-lg p-3 text-sm focus:border-blue-500 outline-none capitalize">
+              <option v-for="p in dynamicProviders" :key="p" :value="p">{{ p === 'openai' ? 'OpenAI' : p }}</option>
+              <option value="custom">Custom (Local/OpenRouter)</option>
+            </select>
+            <select v-model="selectedModel" class="w-full bg-gray-950 border border-gray-700 rounded-lg p-3 text-sm focus:border-blue-500 outline-none">
+              <optgroup v-for="group in modelGroups" :key="group.category" :label="`${group.icon} ${group.label}`">
+                <option v-for="m in group.models" :key="m.id" :value="m.id">{{ m.name }}</option>
+              </optgroup>
+              <optgroup label="✏️ Custom">
+                <option value="__custom__">Inserisci manualmente...</option>
+              </optgroup>
+            </select>
+          </div>
+          <div v-if="selectedModel === '__custom__' || isCustomModel" class="mt-2">
+             <input v-model="customModelId" type="text" placeholder="es. gpt-4o"
+                    @blur="applyCustomModel"
+                    class="w-full bg-gray-950 border border-gray-700 rounded-lg p-3 text-sm focus:border-blue-500 outline-none" />
+          </div>
+          <div v-if="selectedProvider === 'custom'">
+            <label class="block text-sm font-medium text-gray-300 mb-1">Base URL (Custom/Local)</label>
+            <input v-model="customBaseUrl" type="text" placeholder="http://127.0.0.1:1234/v1" 
+                   class="w-full bg-gray-950 border border-gray-700 rounded-lg p-3 text-sm focus:border-blue-500 outline-none" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-300 mb-1">API Key <span class="text-gray-500 font-normal">(Opzionale per Localhost)</span></label>
+            <input v-model="apiKey" type="password" placeholder="sk-..." 
+                   class="w-full bg-gray-950 border border-gray-700 rounded-lg p-3 text-sm focus:border-blue-500 outline-none" />
+          </div>
         </div>
 
         <div>
@@ -93,13 +126,64 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, onMounted, computed } from 'vue'
+import { getModelsGroupedByCategory, getProviders, LlmModelEntry } from '~/lib/llm-models'
 
 const apiKey = ref('')
+const selectedProvider = ref('openai')
+const selectedModel = ref('gpt-4o-mini')
+const customModelId = ref('')
+const customBaseUrl = ref('')
+const dynamicModels = ref<LlmModelEntry[]>([])
+const catalogLoading = ref(false)
+
 const activeMcpServers = ref<string[]>(['npx -y @modelcontextprotocol/server-everything'])
 const input = ref('')
 const messages = ref<{role: string, content: string}[]>([])
 const loading = ref<string | boolean>(false)
+
+// LLM Dynamic Logic
+const dynamicProviders = computed(() => getProviders(dynamicModels.value))
+const modelGroups = computed(() => getModelsGroupedByCategory(selectedProvider.value, dynamicModels.value))
+const knownModelIds = computed(() => modelGroups.value.flatMap(g => g.models).map(m => m.id))
+const isCustomModel = computed(() => {
+  return selectedModel.value && selectedModel.value !== '__custom__' && !knownModelIds.value.includes(selectedModel.value)
+})
+
+function applyCustomModel() {
+  if (customModelId.value.trim()) {
+    selectedModel.value = customModelId.value.trim()
+  }
+}
+
+watch(selectedProvider, (newProv) => {
+  if (newProv !== 'custom') {
+    fetchModelCatalog()
+  }
+  const models = modelGroups.value.flatMap(g => g.models)
+  if (models.length > 0 && !knownModelIds.value.includes(selectedModel.value)) {
+    selectedModel.value = models[0].id
+  }
+})
+
+async function fetchModelCatalog(force = false) {
+  if (catalogLoading.value) return
+  catalogLoading.value = true
+  try {
+    const res = await $fetch('/api/models', { query: force ? { force: '1' } : {} })
+    if (res && res.data) {
+      dynamicModels.value = res.data
+    }
+  } catch (e) {
+    console.error("Failed to fetch model catalog", e)
+  } finally {
+    catalogLoading.value = false
+  }
+}
+
+onMounted(() => {
+  fetchModelCatalog()
+})
 
 // MCP Catalog Logic
 const mcpCatalog = [
@@ -165,6 +249,9 @@ async function sendMessage() {
       body: JSON.stringify({
         prompt: userMsg,
         apiKey: apiKey.value,
+        provider: selectedProvider.value,
+        model: selectedModel.value,
+        customBaseUrl: customBaseUrl.value,
         mcpServers: activeMcpServers.value.filter(s => s.trim())
       })
     })
