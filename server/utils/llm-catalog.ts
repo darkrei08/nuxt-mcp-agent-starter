@@ -11,7 +11,7 @@
  */
 
 import type { LlmModelEntry, ModelCategory } from '~/lib/llm-models'
-import { LLM_MODELS as FALLBACK_MODELS } from '~/lib/llm-models'
+import { LLM_MODELS as FALLBACK_MODELS, mergeModelsWithFallback } from '~/lib/llm-models'
 
 // ── Cache ─────────────────────────────────────────────────────────────────────
 
@@ -88,6 +88,9 @@ const SKIP_PATTERNS = [
   /^(babbage|davinci|curie|ada)(?!.*chat)/i,
   /\b(embed|rerank|moderate|classify|detect|segment|summarize)\b/i,
   /^ft:/i, // fine-tuned user models
+  // ── Deprecated Models Pruning ──────────────────────────────────
+  /\b(gemini-1\.0|gemini-1\.5|gpt-3\.5|claude-1\.|claude-2\.|claude-instant)\b/i,
+  /\bdeprecated\b/i
 ]
 
 function shouldSkip(id: string): boolean {
@@ -327,30 +330,16 @@ export async function fetchModelCatalog(opts: {
     })
   await Promise.all(directFetches)
 
-  // 4. Deduplicate: prefer direct > openrouter > huggingface
-  const seen = new Map<string, LlmModelEntry>()
-  for (const m of allModels) {
-    const key = `${m.provider}:${m.id}`
-    // Later entries (direct API) overwrite earlier ones (openrouter)
-    seen.set(key, m)
-  }
-  let merged = Array.from(seen.values())
+  // 4. Deduplicate & merge with absolute latest Official Frontier Web App Models
+  sources.push('official-frontier-registry')
+  let merged = mergeModelsWithFallback(allModels)
 
   // 5. Filter by provider if requested
   if (opts.providerFilter && opts.providerFilter !== 'custom') {
     merged = merged.filter(m => m.provider === opts.providerFilter)
   }
 
-  // 6. Fallback to hardcoded if nothing came back
-  if (merged.length === 0) {
-    sources.push('fallback')
-    const fallback = opts.providerFilter
-      ? FALLBACK_MODELS.filter(m => m.provider === opts.providerFilter)
-      : [...FALLBACK_MODELS]
-    return { models: fallback, sources, cached: false }
-  }
-
-  // 7. Sort: by provider, then by category priority, then by name
+  // 6. Sort: by provider, then by category priority, then by name
   const catOrder: Record<ModelCategory, number> = { thinking: 0, code: 1, vision: 2, fast: 3 }
   merged.sort((a, b) => {
     if (a.provider !== b.provider) return a.provider.localeCompare(b.provider)

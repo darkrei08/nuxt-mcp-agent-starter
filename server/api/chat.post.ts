@@ -1,9 +1,10 @@
 import { defineEventHandler, readBody, createError, setResponseHeader } from 'h3'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
+import { getPromptByIdOrCategory } from '~/lib/prompt-registry'
 
 export default defineEventHandler(async (event) => {
-  const { prompt, apiKey, mcpServers, provider, model, customBaseUrl } = await readBody(event)
+  const { prompt, apiKey, mcpServers, provider, model, modelOverride, reasoningMode, promptCategory, customBaseUrl } = await readBody(event)
 
   if (!apiKey && provider !== 'custom') {
     throw createError({ statusCode: 400, statusMessage: 'API Key mancante per il provider selezionato' })
@@ -13,7 +14,6 @@ export default defineEventHandler(async (event) => {
   setResponseHeader(event, 'Content-Type', 'text/event-stream')
   setResponseHeader(event, 'Cache-Control', 'no-cache')
   setResponseHeader(event, 'Connection', 'keep-alive')
-  // We must return a promise that resolves when the stream is done, but we can write directly to event.node.res
   const res = event.node.res
   const sendEvent = (type: string, data: any) => {
     res.write(`data: ${JSON.stringify({ type, ...data })}\n\n`)
@@ -23,9 +23,6 @@ export default defineEventHandler(async (event) => {
   if (provider === 'custom' && customBaseUrl) {
     baseURL = customBaseUrl.replace(/\/+$/, '')
   } else if (provider === 'anthropic') {
-    // Anthropic usually uses a different endpoint structure, 
-    // but assuming OpenAI-compatible endpoints or OpenRouter if they use standard openai format
-    // For a real implementation, we should use their specific SDK or format
     baseURL = 'https://openrouter.ai/api/v1'
   } else if (provider === 'gemini') {
     baseURL = 'https://generativelanguage.googleapis.com/v1beta/openai'
@@ -41,10 +38,27 @@ export default defineEventHandler(async (event) => {
     baseURL = 'https://openrouter.ai/api/v1'
   }
   
-  const selectedModel = model || 'gpt-4o-mini'
+  const selectedModel = modelOverride || model || 'gpt-4o-mini'
+
+  // Dynamic system prompt formulation via Prompt Registry & Reasoning Mode
+  let baseSystemContent = 'Sei un assistente IA potenziato con tool MCP (Model Context Protocol). Usa i tool forniti se necessario per rispondere alle domande dell\'utente.'
+  const matchedPrompt = getPromptByIdOrCategory(promptCategory || 'mcp')
+  if (matchedPrompt) {
+    baseSystemContent = matchedPrompt.systemPrompt
+  }
+
+  if (reasoningMode === 'creative') {
+    baseSystemContent += '\n\nMODALITÀ CREATIVA ATTIVA: Usa un tono ingegnoso, persuasivo ed empatico, con forte enfasi sul micro-storytelling.'
+  } else if (reasoningMode === 'analytical') {
+    baseSystemContent += '\n\nMODALITÀ ANALITICA ATTIVA: Ragiona con precisione matematica e strutturale, fornendo scomposizioni chiare e dettagliate.'
+  } else if (reasoningMode === 'antiban') {
+    baseSystemContent += '\n\nMODALITÀ ANTI-BAN STEALTH MAX: Massimizza la varianza algoritmica, elimina qualsiasi parola spam e usa Spintax ad alta varianza.'
+  } else if (reasoningMode === 'cot') {
+    baseSystemContent += '\n\nMODALITÀ CHAIN-OF-THOUGHT: Devi prima ragionare esplicitamente in un blocco <ragionamento>...</ragionamento> analizzando psicologia, attrito cognitivo ed esecuzione prima della risposta finale.'
+  }
 
   const messages = [
-    { role: 'system', content: 'Sei un assistente IA potenziato con tool MCP (Model Context Protocol). Usa i tool forniti se necessario per rispondere alle domande dell\'utente.' },
+    { role: 'system', content: baseSystemContent },
     { role: 'user', content: prompt }
   ]
 

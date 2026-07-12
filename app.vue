@@ -47,6 +47,24 @@
             <input v-model="apiKey" type="password" placeholder="sk-..." 
                    class="w-full bg-gray-950 border border-gray-700 rounded-lg p-3 text-sm focus:border-blue-500 outline-none" />
           </div>
+          <div class="grid grid-cols-2 gap-4 pt-2 border-t border-gray-800">
+            <div>
+              <label class="block text-xs font-semibold text-purple-400 uppercase tracking-wider mb-1">Modalità di Ragionamento</label>
+              <select v-model="reasoningMode" class="w-full bg-gray-950 border border-gray-700 rounded-lg p-2.5 text-sm focus:border-purple-500 outline-none text-gray-200">
+                <option value="standard">⚡ Standard / Bilanciato</option>
+                <option value="creative">🎨 Creativo / Copywriting</option>
+                <option value="analytical">🧠 Analitico / Matematico</option>
+                <option value="antiban">🛡️ Anti-Ban Stealth Max (2026)</option>
+                <option value="cot">🔍 Chain-of-Thought (&lt;ragionamento&gt;)</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-blue-400 uppercase tracking-wider mb-1">Preset Prompt di Sistema</label>
+              <select v-model="promptCategory" class="w-full bg-gray-950 border border-gray-700 rounded-lg p-2.5 text-sm focus:border-blue-500 outline-none text-gray-200">
+                <option v-for="prompt in PROMPT_INDEX" :key="prompt.id" :value="prompt.id">{{ prompt.name }}</option>
+              </select>
+            </div>
+          </div>
         </div>
 
         <div>
@@ -128,6 +146,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, computed } from 'vue'
 import { getModelsGroupedByCategory, getProviders, LlmModelEntry } from '~/lib/llm-models'
+import { PROMPT_INDEX } from '~/lib/prompt-registry'
 
 const apiKey = ref('')
 const selectedProvider = ref('openai')
@@ -136,6 +155,8 @@ const customModelId = ref('')
 const customBaseUrl = ref('')
 const dynamicModels = ref<LlmModelEntry[]>([])
 const catalogLoading = ref(false)
+const reasoningMode = ref('standard')
+const promptCategory = ref('mcp-tool-orchestrator')
 
 const activeMcpServers = ref<string[]>(['npx -y @modelcontextprotocol/server-everything'])
 const input = ref('')
@@ -251,6 +272,9 @@ async function sendMessage() {
         apiKey: apiKey.value,
         provider: selectedProvider.value,
         model: selectedModel.value,
+        modelOverride: selectedModel.value,
+        reasoningMode: reasoningMode.value,
+        promptCategory: promptCategory.value,
         customBaseUrl: customBaseUrl.value,
         mcpServers: activeMcpServers.value.filter(s => s.trim())
       })
