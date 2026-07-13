@@ -158,7 +158,7 @@ const catalogLoading = ref(false)
 const reasoningMode = ref('standard')
 const promptCategory = ref('mcp-tool-orchestrator')
 
-const activeMcpServers = ref<string[]>(['npx -y @modelcontextprotocol/server-everything'])
+const activeMcpServers = ref<string[]>(['/home/ema/.local/bin/ai-wiki mcp --base-dir .', 'uvx serena mcp'])
 const input = ref('')
 const messages = ref<{role: string, content: string}[]>([])
 const loading = ref<string | boolean>(false)
@@ -208,6 +208,9 @@ onMounted(() => {
 
 // MCP Catalog Logic
 const mcpCatalog = [
+  { name: 'LLMWiki (ai-wiki)', cmd: '/home/ema/.local/bin/ai-wiki mcp --base-dir .', desc: 'Personal Knowledge Base & Wiki MCP', icon: '🪄' },
+  { name: 'Serena LSP', cmd: 'uvx serena mcp', desc: 'Semantic Code Search & Call Graphs', icon: '🔬' },
+  { name: 'Squeeze (sqz)', cmd: 'sqz mcp', desc: 'Token Compression & Output Squeezing', icon: '🗜️' },
   { name: 'Brave Search', cmd: 'npx -y @modelcontextprotocol/server-brave-search', desc: 'Ricerca Web', icon: '🔍' },
   { name: 'GitHub', cmd: 'npx -y @modelcontextprotocol/server-github', desc: 'Gestione Repository', icon: '🐙' },
   { name: 'File System', cmd: 'npx -y @modelcontextprotocol/server-filesystem /', desc: 'Accesso ai file locali', icon: '📁' },

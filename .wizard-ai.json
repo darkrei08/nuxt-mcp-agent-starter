@@ -1,0 +1,27 @@
+{
+  "$schema": "https://wizard-ai.org/schema/v1/project.json",
+  "version": "2.0.0",
+  "ecosystem": "Wizard-AI",
+  "mcpServers": {
+    "llmwiki": {
+      "command": "/home/ema/.local/bin/ai-wiki",
+      "args": ["mcp", "--base-dir", "."]
+    },
+    "serena": {
+      "command": "uvx",
+      "args": ["serena", "mcp"]
+    },
+    "sqz": {
+      "command": "sqz",
+      "args": ["mcp"]
+    }
+  },
+  "tools": {
+    "wiki": "/home/ema/.local/bin/ai-wiki",
+    "vector": "/home/ema/.local/bin/ai-vector",
+    "graph": "/home/ema/.local/bin/ai-graph",
+    "compress": "/home/ema/.local/bin/ai-squeeze",
+    "context": "/home/ema/.local/bin/ai-context",
+    "session": "/home/ema/.local/bin/ai-session-save"
+  }
+}

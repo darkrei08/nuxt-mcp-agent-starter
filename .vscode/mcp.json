@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "llmwiki": {
+      "command": "/home/ema/.local/bin/ai-wiki",
+      "args": ["mcp", "--base-dir", "."]
+    },
+    "serena": {
+      "command": "uvx",
+      "args": ["serena", "mcp"]
+    },
+    "sqz": {
+      "command": "sqz",
+      "args": ["mcp"]
+    }
+  }
+}
