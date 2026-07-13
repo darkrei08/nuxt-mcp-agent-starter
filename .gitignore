@@ -3,3 +3,11 @@ node_modules
 .output
 .env
 dist
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.json
+.cursor/
+.gemini/
+.vscode/

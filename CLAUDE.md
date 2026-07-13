@@ -16,7 +16,8 @@
    - Write tests first where applicable.
    - For multi-file heavy tasks (`HEAVY`), dispatch parallel subagents with sharded AST context.
 
-3. **`03. loop-3-debug` (Adversarial Verification & Quality Gates)**
+3. **`03. loop-3-debug` (Adversarial Verification, Quality & Security Gates)**
+   - **MANDATORY SECURITY AUDIT (`cybersecurity` / `strix`)**: You MUST verify that all paths and file access boundaries are standardized/sanitizied (`path.resolve()`, `os.homedir()`) and against path traversal. You MUST verify that NO API keys (`GEMINI_API_KEY`, `OPENAI_API_KEY`, `TOKEN`, `DB_PASSWORD`) or secrets are hardcoded in code or configs; they MUST be read via environment variables (`process.env` / `.env` git-ignored).
    - Run linter/typechecker (`ai-llmwiki lint check` or project linter) and automated test suites (`bun test` / `npm test`).
 
 4. **`04. loop-4-refactor` (Clean Architecture & Token Squeezing)**
